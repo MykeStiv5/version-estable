@@ -1,0 +1,22 @@
+2026/05/22-08:55:13.438 604c Reusing MANIFEST C:\Users\mnino\Documents\limpio\bot-whatsapp-desktop\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/05/22-08:55:13.441 604c Recovering log #373
+2026/05/22-08:55:13.472 604c Reusing old log C:\Users\mnino\Documents\limpio\bot-whatsapp-desktop\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000373.log 
+2026/05/22-08:55:16.026 604c Level-0 table #384: started
+2026/05/22-08:55:16.386 604c Level-0 table #384: 1660402 bytes OK
+2026/05/22-08:55:16.551 604c Delete type=0 #373
+2026/05/22-08:55:16.561 1a8 Compacting 1@1 + 6@2 files
+2026/05/22-08:55:18.232 1a8 Generated table #385@1: 58992 keys, 2244308 bytes
+2026/05/22-08:55:18.743 1a8 Generated table #386@1: 2540 keys, 2151835 bytes
+2026/05/22-08:55:20.065 1a8 Generated table #387@1: 21228 keys, 2205205 bytes
+2026/05/22-08:55:22.237 1a8 Generated table #388@1: 57769 keys, 2193703 bytes
+2026/05/22-08:55:23.522 1a8 Generated table #389@1: 110139 keys, 2262851 bytes
+2026/05/22-08:55:24.219 1a8 Generated table #390@1: 32451 keys, 666906 bytes
+2026/05/22-08:55:24.219 1a8 Compacted 1@1 + 6@2 files => 11724808 bytes
+2026/05/22-08:55:24.308 1a8 compacted to: files[ 0 0 6 0 0 0 0 ]
+2026/05/22-08:55:24.308 1a8 Delete type=2 #376
+2026/05/22-08:55:24.309 1a8 Delete type=2 #377
+2026/05/22-08:55:24.309 1a8 Delete type=2 #378
+2026/05/22-08:55:24.309 1a8 Delete type=2 #379
+2026/05/22-08:55:24.309 1a8 Delete type=2 #380
+2026/05/22-08:55:24.309 1a8 Delete type=2 #381
+2026/05/22-08:55:24.309 1a8 Delete type=2 #384

@@ -1,0 +1,24 @@
+# dependencies
+node_modules/
+
+# WhatsApp Web cache
+.wwebjs_cache/
+
+# Electron builds
+dist/
+out/
+release/
+
+# logs
+*.log
+
+# env
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# editor
+.vscode/
