@@ -9,11 +9,7 @@ const log = createSourceLogger('WhatsAppQueue');
 
 const waService = require('./WhatsAppService');
 
-const {
-    bus,
-    EVENTS
-} = require('../../shared/EventBus');
-
+const { bus, EVENTS } = require('../../shared/EventBus');
 
 // ================= CONFIG =================
 
@@ -21,524 +17,276 @@ const TARGET_CHAT_ID =
 process.env.TARGET_CHAT_ID ||
 '120363408686646018@g.us';
 
-const STORAGE_FILE=
-path.join(
-    process.cwd(),
-    'storage',
-    'queue.json'
-);
+const STORAGE_FILE =
+path.join(process.cwd(), 'storage', 'queue.json');
 
-const RETRY_DELAYS=[
-    5000,
-    15000,
-    30000
-];
-
-const INTERVAL_IDLE=1500;
-
+const RETRY_DELAYS = [5000, 15000, 30000];
+const INTERVAL_IDLE = 1500;
 
 // ================= CLASS =================
 
-class WhatsAppQueue{
+class WhatsAppQueue {
 
-    constructor(){
+    constructor() {
 
-        this.queue=[];
+        this.queue = [];
 
-        this.processing=false;
-        this.paused=true;
+        this.processing = false;
+        this.paused = true;
 
-        this._timer=null;
+        this._timer = null;
+
+        // 🔴 FIX: estado real de WA
+        this._ready = false;
 
         this._load();
         this._bindEvents();
-
     }
 
     // ================= API =================
 
-    enqueueText(
-        text,
-        chatId=TARGET_CHAT_ID
-    ){
-
+    enqueueText(text, chatId = TARGET_CHAT_ID) {
         return this._add({
-
-            type:'text',
+            type: 'text',
             chatId,
             text
-
         });
-
     }
 
-    enqueueMedia(
-
-        imageData,
-        caption='',
-        chatId=TARGET_CHAT_ID
-
-    ){
-
+    enqueueMedia(imageData, caption = '', chatId = TARGET_CHAT_ID) {
         return this._add({
-
-            type:'media',
+            type: 'media',
             chatId,
             imageData,
             caption
-
         });
-
     }
 
-    enqueuePost(
+    enqueuePost(post, chatId = TARGET_CHAT_ID) {
 
-        post,
-        chatId=TARGET_CHAT_ID
-
-    ){
-
-        const text=
-        this._format(post);
+        const text = this._format(post);
 
         return this._add({
-
-            type:
-            post.imageUrl
-            ?'media'
-            :'text',
-
+            type: post.imageUrl ? 'media' : 'text',
             chatId,
-
             text,
-
-            imageData:
-            post.imageUrl || null,
-
-            caption:text
-
+            imageData: post.imageUrl || null,
+            caption: text
         });
-
     }
 
-    start(){
+    start() {
 
-        this.paused=false;
+        this.paused = false;
 
-        log.info(
-            'Queue START'
-        );
+        log.info('Queue START');
 
         this._tick();
-
     }
 
-    stop(){
+    stop() {
 
-        this.paused=true;
+        this.paused = true;
 
-        if(this._timer){
-
-            clearTimeout(
-                this._timer
-            );
-
+        if (this._timer) {
+            clearTimeout(this._timer);
         }
 
-        this._timer=null;
+        this._timer = null;
 
-        log.warn(
-            'Queue STOP'
-        );
-
+        log.warn('Queue STOP');
     }
-
 
     // ================= EVENTS =================
 
-    _bindEvents(){
+    _bindEvents() {
 
-        bus.on(
-            EVENTS.WA_READY,
-            ()=>{
+        bus.on(EVENTS.WA_READY, () => {
 
-                log.info(
-                    'WA_READY → Queue resume'
-                );
+            log.info('WA_READY → Queue resume');
 
-                this.paused=false;
+            this._ready = true;   // 🔴 FIX REAL
+            this.paused = false;
 
-                this._tick();
+            this._tick();
+        });
 
-            }
-        );
+        bus.on(EVENTS.WA_DISCONNECTED, () => {
 
-        bus.on(
-            EVENTS.WA_DISCONNECTED,
-            ()=>{
+            log.warn('WA_DISCONNECTED → Queue pause');
 
-                log.warn(
-                    'WA_DISCONNECTED → Queue pause'
-                );
-
-                this.paused=true;
-
-            }
-        );
-
+            this.paused = true;
+            this._ready = false; // 🔴 FIX seguridad estado
+        });
     }
-
 
     // ================= LOOP =================
 
-    _tick(){
+    _tick() {
 
-        if(this._timer){
-            return;
-        }
+        if (this._timer) return;
 
-        this._timer=
-        setTimeout(
+        this._timer = setTimeout(async () => {
 
-            async()=>{
+            this._timer = null;
 
-                this._timer=null;
+            await this._process();
 
-                await this._process();
+            this._tick();
 
-                this._tick();
-
-            },
-
-            INTERVAL_IDLE
-        );
-
+        }, INTERVAL_IDLE);
     }
 
+    async _process() {
 
-    async _process(){
-
-        if(
-            this.paused ||
-            this.processing
-        ){
+        if (this.paused || this.processing || !this._ready) {
             return;
         }
 
-        if(
-            !this.queue.length
-        ){
-            return;
-        }
+        if (!this.queue.length) return;
 
-        const now=
-        Date.now();
+        const now = Date.now();
 
-        const item=
-        this.queue.find(
+        const item = this.queue.find(m => m.nextTryAt <= now);
 
-            m=>
-            m.nextTryAt<=now
+        if (!item) return;
 
-        );
+        this.processing = true;
 
-        if(!item){
-            return;
-        }
+        try {
 
-        this.processing=true;
-
-        try{
-
-            if(
-                !waService.isReady
-            ){
-
-                log.warn(
-                    'WhatsApp no listo'
-                );
-
-                this.paused=true;
-
+            // 🔴 FIX: doble seguridad WA
+            if (!waService.isReady) {
+                log.warn('WhatsApp no listo');
+                this.paused = true;
+                this._ready = false;
                 return;
-
             }
 
-            await this._send(
-                item
-            );
+            await this._send(item);
 
-            this.queue=
-            this.queue.filter(
-
-                q=>q.id!==item.id
-
-            );
+            this.queue = this.queue.filter(q => q.id !== item.id);
 
             this._save();
 
-            log.info(
-                `SENT ${item.id}`
-            );
+            log.info(`SENT ${item.id}`);
 
-            bus.emit(
-                EVENTS.QUEUE_SENT,
-                item
-            );
+            bus.emit(EVENTS.QUEUE_SENT, item);
 
-        }
-
-        catch(err){
+        } catch (err) {
 
             item.retries++;
 
-            log.error(
-                `FAIL ${item.id}: ${err.message}`
-            );
+            log.error(`FAIL ${item.id}: ${err.message}`);
 
-            if(
-                item.retries>=
-                RETRY_DELAYS.length
-            ){
+            if (item.retries >= RETRY_DELAYS.length) {
 
-                log.error(
-                    `DEAD LETTER ${item.id}`
-                );
+                log.error(`DEAD LETTER ${item.id}`);
 
-                this.queue=
-                this.queue.filter(
+                this.queue = this.queue.filter(q => q.id !== item.id);
 
-                    q=>q.id!==item.id
+            } else {
 
-                );
-
-            }
-
-            else{
-
-                item.nextTryAt=
-                Date.now()+
-                RETRY_DELAYS[
-                    item.retries-1
-                ];
-
+                item.nextTryAt =
+                    Date.now() +
+                    RETRY_DELAYS[item.retries - 1];
             }
 
             this._save();
 
-            bus.emit(
-                EVENTS.QUEUE_FAILED,
-                {
-                    item,
-                    error:err.message
-                }
-            );
-
+            bus.emit(EVENTS.QUEUE_FAILED, {
+                item,
+                error: err.message
+            });
         }
 
-        this.processing=false;
-
+        this.processing = false;
     }
 
+    async _send(item) {
 
-    async _send(item){
-
-        if(
-            item.type==='text'
-        ){
-
-            return await
-            waService.sendMessage(
-
-                item.chatId,
-                item.text
-
-            );
-
+        if (item.type === 'text') {
+            return await waService.sendMessage(item.chatId, item.text);
         }
 
-        if(
-            !item.imageData
-        ){
-
-            return await
-            waService.sendMessage(
-
-                item.chatId,
-                item.caption
-
-            );
-
+        if (!item.imageData) {
+            return await waService.sendMessage(item.chatId, item.caption);
         }
 
-        return await
-        waService.sendMediaMessage(
-
+        return await waService.sendMediaMessage(
             item.chatId,
             item.imageData,
             item.caption
-
         );
-
     }
-
 
     // ================= INTERNAL =================
 
-    _add(data){
+    _add(data) {
 
-        const item={
-
-            id:
-            `${Date.now()}_${Math.random()
-            .toString(36)
-            .slice(2,8)}`,
-
-            retries:0,
-
-            nextTryAt:0,
-
-            createdAt:
-            Date.now(),
-
+        const item = {
+            id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            retries: 0,
+            nextTryAt: 0,
+            createdAt: Date.now(),
             ...data
-
         };
 
-        this.queue.push(
-            item
-        );
+        this.queue.push(item);
 
         this._save();
 
-        log.info(
-            `ENQUEUE ${item.id}`
-        );
+        log.info(`ENQUEUE ${item.id}`);
 
         this._tick();
 
         return item.id;
-
     }
 
-
-    _format(post){
+    _format(post) {
 
         return [
-
-            post.title
-            ?`*${post.title}*`
-            :'',
-
-            post.description||'',
-
-            post.link
-            ?`🔗 ${post.link}`
-            :''
-
+            post.title ? `*${post.title}*` : '',
+            post.description || '',
+            post.link ? `🔗 ${post.link}` : ''
         ]
-
-        .filter(Boolean)
-
-        .join('\n\n');
-
+            .filter(Boolean)
+            .join('\n\n');
     }
-
 
     // ================= STORAGE =================
 
-    _load(){
+    _load() {
 
-        try{
+        try {
 
-            fs.mkdirSync(
+            fs.mkdirSync(path.dirname(STORAGE_FILE), { recursive: true });
 
-                path.dirname(
-                    STORAGE_FILE
-                ),
-
-                {
-                    recursive:true
-                }
-
-            );
-
-            if(
-
-                fs.existsSync(
-                    STORAGE_FILE
-                )
-
-            ){
-
-                this.queue=
-                JSON.parse(
-
-                    fs.readFileSync(
-                        STORAGE_FILE,
-                        'utf8'
-                    )
-
-                );
-
+            if (fs.existsSync(STORAGE_FILE)) {
+                this.queue = JSON.parse(fs.readFileSync(STORAGE_FILE, 'utf8'));
             }
 
+        } catch (e) {
+            log.error('LOAD ERROR');
+            this.queue = [];
         }
-
-        catch(e){
-
-            log.error(
-                'LOAD ERROR'
-            );
-
-            this.queue=[];
-
-        }
-
     }
 
+    _save() {
 
-    _save(){
+        try {
 
-        try{
-
-            fs.mkdirSync(
-
-                path.dirname(
-                    STORAGE_FILE
-                ),
-
-                {
-                    recursive:true
-                }
-
-            );
+            fs.mkdirSync(path.dirname(STORAGE_FILE), { recursive: true });
 
             fs.writeFileSync(
-
                 STORAGE_FILE,
-
-                JSON.stringify(
-                    this.queue,
-                    null,
-                    2
-                )
-
+                JSON.stringify(this.queue, null, 2)
             );
 
+        } catch (e) {
+            log.error('SAVE ERROR');
         }
-
-        catch(e){
-
-            log.error(
-                'SAVE ERROR'
-            );
-
-        }
-
     }
-
 }
 
-module.exports=
-new WhatsAppQueue();
+module.exports = new WhatsAppQueue();

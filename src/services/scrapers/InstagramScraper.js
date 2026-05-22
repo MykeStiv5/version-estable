@@ -1,140 +1,283 @@
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
+const fs=require('fs');
+const path=require('path');
 
-const INSTAGRAM_URL =
-    'https://www.instagram.com/titularizadora.colombiana/';
+const INSTAGRAM_URL=
+'https://www.instagram.com/titularizadora.colombiana/';
 
-class InstagramScraper {
+class InstagramScraper{
 
-    constructor() {
-        this.seenFile = path.join(process.cwd(), 'storage', 'ig_seen.json');
-        this.seenIds = new Set();
+    constructor(){
+
+        this.seenPath=
+        path.join(
+            process.cwd(),
+            'storage',
+            'ig_seen.json'
+        );
+
+        this.seen=
+        new Set();
+
         this._loadSeen();
+
     }
 
-    // ─────────────────────────────
-    // LOAD PERSISTENTE
-    // ─────────────────────────────
+    //=========================
+    // SEEN
+    //=========================
 
-    _loadSeen() {
-        try {
+    _loadSeen(){
 
-            if (!fs.existsSync(this.seenFile)) {
-                fs.mkdirSync(path.dirname(this.seenFile), { recursive: true });
-                fs.writeFileSync(this.seenFile, JSON.stringify([]));
-            }
+        try{
 
-            const raw = fs.readFileSync(this.seenFile, 'utf8');
-            const data = JSON.parse(raw);
+            if(
+                fs.existsSync(
+                    this.seenPath
+                )
+            ){
 
-            this.seenIds = new Set(data || []);
+                this.seen=
+                new Set(
 
-            console.log(`[IG] Seen cargados: ${this.seenIds.size}`);
+                    JSON.parse(
 
-        } catch (err) {
-            console.log('[IG] Error loading seen:', err.message);
-            this.seenIds = new Set();
-        }
-    }
+                        fs.readFileSync(
+                            this.seenPath,
+                            'utf8'
+                        )
 
-    // ─────────────────────────────
-    // SAVE PERSISTENTE
-    // ─────────────────────────────
+                    )
 
-    _saveSeen() {
-        try {
-
-            const arr = [...this.seenIds].slice(-1000); // límite de memoria
-
-            fs.writeFileSync(
-                this.seenFile,
-                JSON.stringify(arr, null, 2)
-            );
-
-        } catch (err) {
-            console.log('[IG] Error saving seen:', err.message);
-        }
-    }
-
-    // ─────────────────────────────
-    // SCRAPE
-    // ─────────────────────────────
-
-    async scrape(page, max = 5) {
-
-        try {
-
-            await page.goto(INSTAGRAM_URL, {
-                waitUntil: 'domcontentloaded',
-                timeout: 60000
-            });
-
-            await page.waitForTimeout(8000);
-
-            await page.evaluate(() => {
-                window.scrollBy(0, window.innerHeight);
-            });
-
-            await page.waitForTimeout(3000);
-
-            const posts = await page.evaluate((max) => {
-
-                const links = Array.from(
-                    document.querySelectorAll('a[href*="/p/"], a[href*="/reel/"]')
                 );
 
-                const unique = [...new Map(
-                    links.map(a => [a.href, a])
+            }
+
+        }
+        catch(_){
+
+            this.seen=
+            new Set();
+
+        }
+
+    }
+
+    _saveSeen(){
+
+        try{
+
+            fs.mkdirSync(
+
+                path.dirname(
+                    this.seenPath
+                ),
+                {
+                    recursive:true
+                }
+
+            );
+
+            fs.writeFileSync(
+
+                this.seenPath,
+
+                JSON.stringify(
+
+                    [...this.seen]
+                    .slice(-1000)
+
+                )
+
+            );
+
+        }
+        catch(_){}
+
+    }
+
+    //=========================
+    // SCRAPE
+    //=========================
+
+    async scrape(
+        page,
+        max=5,
+        externalSeen=new Set()
+    ){
+
+        try{
+
+            await page.goto(
+
+                INSTAGRAM_URL,
+
+                {
+                    waitUntil:'networkidle',
+                    timeout:60000
+                }
+
+            );
+
+            await page.waitForTimeout(
+                4000
+            );
+
+            const loginRequired=
+            page.url()
+            .includes(
+                '/accounts/login'
+            );
+
+            if(
+                loginRequired
+            ){
+
+                console.log(
+                    '[IG] esperando login'
+                );
+
+                return [];
+            }
+
+            await page.mouse.wheel(
+                0,
+                3000
+            );
+
+            await page.waitForTimeout(
+                3000
+            );
+
+            const posts=
+            await page.evaluate(
+            max=>{
+
+                const links=
+                [...document.querySelectorAll('a')];
+
+                const filtered=
+                links.filter(
+
+                    a=>
+
+                    a.href &&
+                    (
+                        a.href.includes('/p/') ||
+                        a.href.includes('/reel/')
+                    )
+
+                );
+
+                const unique=
+                [...new Map(
+
+                    filtered.map(
+
+                        x=>[
+                            x.href,
+                            x
+                        ]
+
+                    )
+
                 ).values()];
 
-                return unique.slice(0, max).map(a => {
+                return unique
+                .slice(0,max)
+                .map(a=>{
 
-                    const href = a.href;
-                    const code = href.split('/').filter(Boolean).pop();
+                    const href=
+                    a.href;
 
-                    return {
-                        id: 'ig_' + code,
-                        source: 'instagram',
-                        title: 'Nueva publicación Instagram',
-                        description: 'Titularizadora Colombiana',
-                        link: href,
-                        imageUrl: null
+                    const code=
+                    href
+                    .split('/')
+                    .filter(Boolean)
+                    .pop();
+
+                    return{
+
+                        id:
+                        'ig_'+code,
+
+                        source:
+                        'instagram',
+
+                        title:
+                        'Instagram',
+
+                        description:
+                        'Nueva publicación',
+
+                        link:
+                        href,
+
+                        imageUrl:
+                        null
+
                     };
 
-                }).filter(p => p.id);
+                });
 
-            }, max);
+            },max);
 
-            // ─────────────────────────────
-            // 🔥 ANTI DUPLICADO REAL
-            // ─────────────────────────────
+            const fresh=[];
 
-            const fresh = [];
+            for(
+                const p of posts
+            ){
 
-            for (const post of posts) {
+                const exists=
 
-                if (!this.seenIds.has(post.id)) {
-                    this.seenIds.add(post.id);
-                    fresh.push(post);
+                    this.seen.has(
+                        p.id
+                    ) ||
+
+                    externalSeen.has(
+                        p.id
+                    );
+
+                if(
+                    exists
+                ){
+                    continue;
                 }
+
+                this.seen.add(
+                    p.id
+                );
+
+                fresh.push(
+                    p
+                );
+
             }
 
-            if (fresh.length > 0) {
-                this._saveSeen();
-            }
+            this._saveSeen();
 
-            console.log(`[IG] nuevos: ${fresh.length}`);
+            console.log(
+                `[IG] nuevos: ${fresh.length}`
+            );
 
             return fresh;
 
-        } catch (err) {
-
-            console.log('[IG ERROR]', err.message);
-            return [];
         }
+        catch(err){
+
+            console.log(
+                '[IG ERROR]',
+                err.message
+            );
+
+            return[];
+
+        }
+
     }
+
 }
 
-module.exports = new InstagramScraper();
+module.exports=
+new InstagramScraper();

@@ -87,12 +87,17 @@ document.addEventListener('DOMContentLoaded',()=>{
 
             try{
 
-                await window.botAPI.startBot();
+                const result =
+await window.botAPI.startBot();
 
-                addActivity(
-                    'Sistema',
-                    'Bot iniciado'
-                );
+if(result.status==='started'){
+
+    addActivity(
+        'Sistema',
+        'Bot iniciado'
+    );
+
+}
 
             }
             catch(err){

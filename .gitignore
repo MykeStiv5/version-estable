@@ -1,24 +1,32 @@
-# dependencies
+# Dependencias
 node_modules/
 
-# WhatsApp Web cache
-.wwebjs_cache/
+# Variables sensibles
+.env
 
-# Electron builds
-dist/
-out/
-release/
+# Sesiones WhatsApp
+.wwebjs_auth/
 
-# logs
+# Sesiones Instagram / Playwright
+.instagram-session/
+
+# Storage temporal
+storage/*.json
+
+# Logs
 *.log
 
-# env
-.env
-.env.local
+# Electron
+dist/
+out/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# editor
+# VSCode
 .vscode/
+
+# Cache
+.cache/
+tmp/

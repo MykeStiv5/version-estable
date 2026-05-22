@@ -80,23 +80,26 @@ class BotController {
 
         bus.on(EVENTS.WA_READY, async () => {
 
-            // 🔴 FIX: evitar duplicados
-            if (this.wareadyHandled) return;
-            this.wareadyHandled = true;
+    if (this.wareadyHandled) return;
+    this.wareadyHandled = true;
 
-            log.info('WA READY → arrancando scraper');
+    log.info('WA READY → arrancando scraper');
 
-            try {
-                if (!this.scraperStarted) {
-                    this.scraperStarted = true;
-                    await scraper.start();
-                }
-            } catch (err) {
-                log.error(`Scraper error: ${err.message}`);
-            }
+    try {
+        if (!this.scraperStarted) {
+            this.scraperStarted = true;
+            await scraper.start();
+        }
 
-            bus.emit(EVENTS.BOT_STARTED);
-        });
+        // 🔴 FIX CRÍTICO: activar cola manual
+        queue.start();
+
+    } catch (err) {
+        log.error(`Scraper error: ${err.message}`);
+    }
+
+    bus.emit(EVENTS.BOT_STARTED);
+});
 
         bus.on(EVENTS.WA_DISCONNECTED, async (reason) => {
 
